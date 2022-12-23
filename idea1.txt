@@ -1,0 +1,7 @@
+Use reinforcement learning to get the ball to follow a specific function given the volume of mic input.
+  -> Display the current function (by sampling the network eg. between 0-1)
+  -> Update display after ever stage of learning
+  -> User rates the response to noise, this is where the learning happens
+
+Can gamify this by having an option for users to try recreated some function using the reinforcement learning
+  -> Also have a playground where its not gamified 
