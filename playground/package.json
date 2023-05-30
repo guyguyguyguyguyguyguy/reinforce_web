@@ -1,0 +1,22 @@
+{
+  "name": "some-things",
+  "version": "1.0.0",
+  "description": "Website of some things",
+  "scripts": {
+    "build": "parcel index.html --open"
+  },
+  "dependencies": {
+    "@types/p5": "0.9.0",
+    "p5": "0.9.0"
+  },
+  "devDependencies": {
+    "cssnano": "^6.0.1",
+    "parcel": "^2.8.3",
+    "postcss": "^8.4.23",
+    "typescript": "^5.0.42.8.3"
+  },
+  "keywords": [
+    "p5js",
+    "typescript"
+  ]
+}
