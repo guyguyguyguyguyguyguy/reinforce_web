@@ -30,15 +30,15 @@ class Trap {
     public d0: number = 0,
     public d1: number = 0,
     public sink: number = 0,
-    public uSave: number = 0;
-    public uSide: number = 0;
+    public uSave: number = 0,
+    public uSide: number = 0,
     public state: number = 0,
   ) {}
 }
 
 class NodeT{
   constructor(
-    public nodeType: number = 0,
+    public nodeType: nType = nType.T_SINK,
     public segnum: number = 0,
     public yVal: Point = new Point(),
     public trNum: number = 0,
@@ -53,9 +53,11 @@ const TRSIZE: number = 4*100;
 const SEGSIZE: number = 200;
 const C_EPS: number = 1e-7;
 
-const T_X: number = 1
-const T_Y: number = 2;
-const T_SINK: number = 3
+enum nType {
+  T_X = 1,
+  T_Y = 2,
+  T_SINK = 3,
+}
 
 const ST_VALID = 1;
 const ST_INVALID = 2;
@@ -117,7 +119,16 @@ function _greaterThanEqualTo(v0: Point, v1: Point): boolean {
     return false;
   } 
 
-  return v0.x => v1.x;
+  return v0.x >= v1.x;
+}
+
+function _lessThan(v0: Point, v1: Point) {
+  if (v0.y < v1.y - C_EPS) {
+    return true;
+  } else if (v0.y > v1.y + C_EPS) {
+    return false
+  }
+  return v0.x < v1.x;
 }
 
 function _equalTo(v0: Point, v1: Point): boolean {
@@ -267,6 +278,16 @@ class Trapezoidate {
       for (i = mathN(nseg, h-1) + 1; i <= mathN(nseg, h); ++i) {
         this.addSeg(this.nextSeg.next().value);
       }
+
+      console.log("Add seg1 done");
+
+      for (i = 1; i <= nseg; ++i) {
+        this.findNewRoots(i);
+      }
+    }
+
+    for (i = mathN(nseg, logStar(nseg) +1); i <= nseg; ++i) {
+      this.addSeg(this.nextSeg.next().value);
     }
   }
   
@@ -300,38 +321,38 @@ class Trapezoidate {
    // Starting node is initialised as the higher vertex of the randomly selected first segment 
    // Set this node to be the root
    i1 = this.newNode();
-   this.QS[i1].nodeType = T_Y;
+   this.QS[i1].nodeType = nType.T_Y;
    this.QS[i1].yVal = _max(this.SEG[segnum].v0, this.SEG[segnum].v1);
    root = i1;
 
    // Set right branch of root to be a sink
    this.QS[i1].right = i2 = this.newNode();
-   this.QS[i2].nodeType = T_SINK;
+   this.QS[i2].nodeType = nType.T_SINK;
    this.QS[i2].paren = i1;
 
    // Set the third vertex to be the lower vertex of the randomly selected first segment
    // This is placed as the left branch of the root in the query tree
    this.QS[i1].left = i3 = this.newNode();
-   this.QS[i3].nodeType = T_Y;
+   this.QS[i3].nodeType = nType.T_Y;
    this.QS[i3].yVal = _min(this.SEG[segnum].v0, this.SEG[segnum].v1);
    this.QS[i3].paren = i1;
   
    // Set left branch of i3 to be a sink
    this.QS[i3].left = i4 = this.newNode();
-   this.QS[i4].nodeType = T_SINK;
+   this.QS[i4].nodeType = nType.T_SINK;
    this.QS[i4].paren = i3;
 
    this.QS[i3].right = i5 = this.newNode();
-   this.QS[i5].nodeType = T_X;
+   this.QS[i5].nodeType = nType.T_X;
    this.QS[i5].segnum = segnum;
    this.QS[i5].paren = i3;
 
    this.QS[i5].left = i6 = this.newNode();
-   this.QS[i6].nodeType = T_SINK;
+   this.QS[i6].nodeType = nType.T_SINK;
    this.QS[i6].paren = i5;
 
    this.QS[i5].right = i7 = this.newNode();
-   this.QS[i7].nodeType = T_SINK;
+   this.QS[i7].nodeType = nType.T_SINK;
    this.QS[i7].paren = i5;
 
    // Create 4 new trapezoids 
@@ -390,9 +411,11 @@ class Trapezoidate {
 
   locateEndpoint(v: Point, vo: Point, r: number): number {
     switch (this.QS[r].nodeType) {
-      case T_SINK:
+      //case nType.T_SINK:
+      case 3:
         return this.QS[r].trNum;
-      case T_Y:
+      // case nType.T_Y:
+      case 2:
         if(_greaterThan(v, this.QS[r].yVal)) {
           return this.locateEndpoint(v, vo, this.QS[r].right);
         } else if (_equalTo(v, this.QS[r].yVal)) {
@@ -404,7 +427,8 @@ class Trapezoidate {
         } else {
           return this.locateEndpoint(v, vo, this.QS[r].left);
         }
-      case T_X:
+      // case nType.T_X:
+      case 1:
         if(_equalTo(v, this.SEG[this.QS[r].segnum].v0) || _equalTo(v, this.SEG[this.QS[r].segnum].v1)) {
         if (FP_EQUAL(v.y, vo.y)) {
           if (vo.x < v.x) {
@@ -424,6 +448,7 @@ class Trapezoidate {
         }
 
       default: 
+        console.log(this.QS[r]);
         throw new Error("wot?");
         break;
     }
@@ -431,11 +456,12 @@ class Trapezoidate {
 
   addSeg(s: number) {
     let isSwapped: boolean = false;
-    let tFirst: number 0;
+    let tFirst: number = 0;
     let tLast: number = 0 ;
     let triTop: number = 0;
     let triBot: number = 0;
     let i1: number, i2: number, sk: number;
+    let tmpTriSeg: number;
 
     if (_greaterThan(this.SEG[s].v1, this.SEG[s].v0)) {
       [this.SEG[s].v0, this.SEG[s].v1] = [this.SEG[s].v1, this.SEG[s].v0];
@@ -452,7 +478,7 @@ class Trapezoidate {
       this.TR[tu].lo.x = this.TR[tl].hi.x = this.SEG[s].v0.x;
       this.TR[tu].d0 = tl;
       this.TR[tu].d1 = 0;
-      this.TR[tl].u0 = tr;
+      this.TR[tl].u0 = tu;
       this.TR[tl].u1 = 0;
 
       let tmpD = this.TR[tl].d0;
@@ -474,17 +500,17 @@ class Trapezoidate {
       i2 = this.newNode();
       sk = this.TR[tu].sink;
 
-      this.QS[sk].nodeType = T_Y;
+      this.QS[sk].nodeType = nType.T_Y;
       this.QS[sk].yVal = this.SEG[s].v0;
       this.QS[sk].segnum = s;
       this.QS[sk].left = i2;
       this.QS[sk].right = i1;
 
-      this.QS[i1].nodeType = T_SINK;
+      this.QS[i1].nodeType = nType.T_SINK;
       this.QS[i1].trNum = tu;
       this.QS[i1].paren = sk;
 
-      this.QS[i2].nodeType = T_SINK;
+      this.QS[i2].nodeType = nType.T_SINK;
       this.QS[i2].trNum = tl;
       this.QS[i2].paren = sk;
 
@@ -493,7 +519,7 @@ class Trapezoidate {
       tFirst = tl;
     } else {
       tFirst = this.locateEndpoint(this.SEG[s].v0, this.SEG[s].v1, this.SEG[s].root0);
-      trTop = 1;
+      triTop = 1;
     }
     
     if((isSwapped) ? !this.inserted(s, FIRSTPT) : !this.inserted(s, LASTPT)) {
@@ -528,17 +554,17 @@ class Trapezoidate {
       i2 = this.newNode();
       sk = this.TR[tu].sink;
 
-      this.QS[sk].nodeType = T_Y;
+      this.QS[sk].nodeType = nType.T_Y;
       this.QS[sk].yVal = this.SEG[s].v1;
       this.QS[sk].segnum = s;
       this.QS[sk].left = i2;
       this.QS[sk].right = i1;
 
-      this.QS[i1].nodeType = T_SINK;
+      this.QS[i1].nodeType = nType.T_SINK;
       this.QS[i1].trNum = tu;
       this.QS[i1].paren = sk;
 
-      this.QS[i2].nodeType = T_SINK;
+      this.QS[i2].nodeType = nType.T_SINK;
       this.QS[i2].trNum = tl;
       this.QS[i2].paren = sk;
 
@@ -555,35 +581,37 @@ class Trapezoidate {
 
     let tFirstR: number;
     let tLastR: number;
+    let tFirstL: number = 0;
+    let tLastL: number = 0 ;
     let tn: number;
 
     while (t > 0 && _greaterThanEqualTo(this.TR[t].lo, this.TR[tLast].lo)) {
-      let tSav: number;
-      let tnSav: number;
+      let tSav: number = 0;
+      let tnSav: number = 0;
 
       sk = this.TR[t].sink;
       i1 = this.newNode();
       i2 = this.newNode();
 
-      this.QS[sk].nodeType = T_X;
+      this.QS[sk].nodeType = nType.T_X;
       this.QS[sk].segnum = s;
       this.QS[sk].left = i1;
       this.QS[sk].right = i2;
 
-      this.QS[i1].nodeType = T_SINK;
+      this.QS[i1].nodeType = nType.T_SINK;
       this.QS[i1].trNum = t;
       this.QS[i1].paren = sk;
       
-      this.QS[i2].nodeType = T_SINK;
+      this.QS[i2].nodeType = nType.T_SINK;
       this.QS[i2].trNum = tn = this.newTrap();
-      this.QS[tn].state = ST_VALID;
+      this.TR[tn].state = ST_VALID;
       this.QS[i2].paren = sk;
 
 
       if (t == tFirst) {
         tFirstR = tn;
       }
-      if (_eqaulTo(this.TR[t].lo, this.TR[tLast].lo)) {
+      if (_equalTo(this.TR[t].lo, this.TR[tLast].lo)) {
         tLastR = tn;
       }
 
@@ -630,27 +658,306 @@ class Trapezoidate {
           let td1 = this.TR[tmpU].d1;
 
           if (td0 > 0 && td1 > 0) {
-            if (this.TR[td0].rseg > 0 && !_isLeftOf(this.TR[td0].rseg, this.SEG[s].v1)) {
+            if (this.TR[td0].rseg > 0 && !_isLeftOf(this.SEG[this.TR[td0].rseg], this.SEG[s].v1)) {
               this.TR[t].u0 = this.TR[t].u1 = this.TR[tn].u1 = -1;
-              this.TR[this.TR[tn].u0].d1] = tn;
+              this.TR[this.TR[tn].u0].d1 = tn;
             } else {
               this.TR[tn].u0 = this.TR[tn].u1 = this.TR[t].u1 = -1;
               this.TR[this.TR[t].u0].d0 = t;
             }
+          } else {
+            this.TR[this.TR[t].u0].d0 = t;
+            this.TR[this.TR[t].u0].d1 = tn;
+          }
+        }
+
+        if(FP_EQUAL(this.TR[t].lo.y, this.TR[tLast].lo.y) && FP_EQUAL(this.TR[t].lo.x, this.TR[tLast].lo.x) && triBot) {
+          let tmpSeg: number = 0;
+
+          tmpTriSeg = isSwapped ? this.SEG[s].prev : this.SEG[s].next;
+
+          if (tmpSeg > 0 && _isLeftOf(this.SEG[tmpSeg], this.SEG[s].v0)) {
+            this.TR[this.TR[t].d1].u0 = t;
+            this.TR[tn].d0 = this.TR[tn].d1 = -1;
+          } else {
+            this.TR[this.TR[tn].d1].u1 = tn;
+            this.TR[t].d0 = this.TR[t].d1 = -1;
+          }
         } else {
-          this.TR[this.TR[t].u0].d0 = t;
-          this.TR[this.TR[t].u0].d1 = tn;
+          if (this.TR[this.TR[t].d1].u0 > 0 && this.TR[this.TR[t].d1].u1 >0) {
+            if (this.TR[this.TR[t].d1].u0 == t) {
+              this.TR[this.TR[t].d1].uSave = this.TR[this.TR[t].d1].u1;
+              this.TR[this.TR[t].d1].uSide = S_LEFT;
+            } else {
+              this.TR[this.TR[t].d1].uSave = this.TR[this.TR[t].d1].u0;
+              this.TR[this.TR[t].d1].uSide = S_RIGHT;
+            }
+          }
+
+          this.TR[this.TR[t].d1].u0 = t;
+          this.TR[this.TR[t].d1].u1 = tn;
+        }
+
+        t = this.TR[t].d1;
+      } else if (this.TR[t].d0 <= 0 && this.TR[t].d1 > 0) {
+        if (this.TR[t].u0 > 0 && this.TR[t].u1 > 0) {
+          if (this.TR[t].uSave > 0) {
+            if (this.TR[t].uSide == S_LEFT) {
+              this.TR[tn].u0 = this.TR[t].u1;
+              this.TR[t].u1 = -1;
+              this.TR[tn].u1 = this.TR[t].uSave;
+              
+              this.TR[this.TR[t].u0].d0 = t;
+              this.TR[this.TR[tn].u0].d0 = tn;
+              this.TR[this.TR[tn].u1].d0 = tn;
+            } else {
+              this.TR[tn].u1 = t-1;
+              this.TR[tn].u0 =this.TR[t].u1;
+              this.TR[t].u1 = this.TR[t].u0;
+              this.TR[t].u0 = this.TR[t].uSave;
+              
+              this.TR[this.TR[t].u0].d0 = t;
+              this.TR[this.TR[t].u1].d0 = t;
+              this.TR[this.TR[tn].u0].d0 = tn;
+            }
+
+            this.TR[t].uSave = this.TR[tn].uSave = 0;
+          } else {
+            this.TR[tn].u0 = this.TR[t].u1;
+            this.TR[t].u1 = this.TR[tn].u1 = -1;
+            this.TR[this.TR[tn].u0].d0 = tn;
+          }
+        } else {
+          let tmpU = this.TR[t].u0;
+          let td0 = this.TR[tmpU].d0;
+          let td1 = this.TR[tmpU].d1;
+
+          if (td0 > 0 && td1 > 0) {
+            if (this.TR[td0].rseg > 0 && !_isLeftOf(this.SEG[this.TR[td0].rseg], this.SEG[s].v1)) {
+              this.TR[t].u0 = this.TR[t].u1 = this.TR[tn].u1 = -1;
+              this.TR[this.TR[tn].u0].d1 = tn;
+            } else {
+              this.TR[tn].u0 = this.TR[tn].u1 = this.TR[t].u1 = -1;
+              this.TR[this.TR[t].u0].d0 = t;
+            }
+          } else {
+            this.TR[this.TR[t].u0].d0 = t;
+            this.TR[this.TR[t].u0].d1 = tn;
+          }
+        }
+
+        if (FP_EQUAL(this.TR[t].lo.y, this.TR[tLast].lo.y) && FP_EQUAL(this.TR[t].lo.x, this.TR[tLast].lo.x) && triBot) {
+          let tmpSeg = 0;
+
+          if (isSwapped) {
+            tmpTriSeg = this.SEG[s].prev;
+          } else {
+            tmpTriSeg = this.SEG[s].next;
+          }
+
+          if (tmpSeg > 0 && _isLeftOf(this.SEG[tmpSeg], this.SEG[s].v0)) {
+            this.TR[this.TR[t].d1].u0 = t;
+            this.TR[tn].d0 = this.TR[tn].d1 = -1;
+          } else {
+            this.TR[this.TR[tn].d1].u1 = tn;
+            this.TR[t].d0 = this.TR[t].d1 = -1;
+          }
+        } else {
+          if (this.TR[this.TR[t].d1].u0 > 0 && this.TR[this.TR[t].d1].u1 > 0) {
+            if (this.TR[this.TR[t].d1].u0 == t) {
+              this.TR[this.TR[t].d1].uSave = this.TR[this.TR[t].d1].u1;
+              this.TR[this.TR[t].d1].uSide = S_LEFT;
+            } else {
+              this.TR[this.TR[t].d1].uSave = this.TR[this.TR[t].d1].u0;
+              this.TR[this.TR[t].d1].uSide = S_RIGHT;
+            }
+          }
+          this.TR[this.TR[t].d1].u0 = t;
+          this.TR[this.TR[t].d1].u1 = tn;
+        }
+
+        t = this.TR[t].d1;
+      } else {
+        let tmpSeg = this.TR[this.TR[t].d0].rseg;
+        let iD0: boolean = false;
+        let iD1: boolean = false;
+        let y0: number, yt: number;
+        let tNext: number = 0;
+        
+        if (FP_EQUAL(this.TR[t].lo.y, this.SEG[s].v0.y)) {
+          if (this.TR[t].lo.x > this.SEG[s].v0.x) {
+            iD0 = true;
+          } else {
+            iD1 = true;
+          }
+        } else {
+          let tmpPt = new Point();
+          tmpPt.y = y0 = this.TR[t].lo.y;
+          yt = (y0 - this.SEG[s].v0.y) / (this.SEG[s].v1.y - this.SEG[s].v0.y);
+          tmpPt.x = this.SEG[s].v0.x + yt * (this.SEG[s].v1.x - this.SEG[s].v0.x);
+
+          if (_lessThan(tmpPt, this.TR[t].lo)) {
+            iD0 = true;
+          } else {
+            iD1 = true;
+          }
+        }
+
+        if (this.TR[t].u0 > 0 && this.TR[t].u1 > 0) {
+          if (this.TR[t].uSave > 0) {
+            if (this.TR[t].uSide == S_LEFT) {
+              this.TR[tn].u0 = this.TR[t].u1;
+              this.TR[t].u1 = -1;
+              this.TR[tn].u1 = this.TR[t].uSave;
+
+              this.TR[this.TR[t].u0].d0 = t;
+              this.TR[this.TR[tn].u0].d0 = tn;
+              this.TR[this.TR[tn].u1].d0 = tn;
+            } else {
+              this.TR[tn].u1 = -1;
+              this.TR[tn].u0 = this.TR[t].u1;
+              this.TR[t].u1 = this.TR[t].u0;
+              this.TR[t].u0 = this.TR[t].uSave;
+
+              this.TR[this.TR[t].u0].d0 = t;
+              this.TR[this.TR[t].u1].d0 = t;
+              this.TR[this.TR[tn].u0].d0 = tn;
+            }
+            this.TR[t].uSave = this.TR[tn].uSave = 0;
+          } else {
+            this.TR[tn].u0 = this.TR[t].u1;
+            this.TR[tn].u1 = -1;
+            this.TR[t].u1 = -1;
+            this.TR[this.TR[tn].u0].d0 = tn;
+          }
+        } else {
+          let tmpU = this.TR[t].u0;
+          let tD0 = this.TR[tmpU].d0;
+          let tD1 = this.TR[tmpU].d1;
+
+          if (tD0 > 0 && tD1 > 0) {
+            if (this.TR[tD0].rseg > 0 && !_isLeftOf(this.SEG[this.TR[tD0].rseg], this.SEG[s].v1)) {
+              this.TR[t].u0 = this.TR[t].u1 = this.TR[tn].u1 = -1;
+              this.TR[this.TR[tn].u0].d1 = tn;
+            } else {
+              this.TR[tn].u0 =this.TR[tn].u1 = this.TR[t].u1 = -1;
+              this.TR[this.TR[t].u0].d0 = t;
+            }
+          } else {
+            this.TR[this.TR[t].u0].d0 = t;
+            this.TR[this.TR[t].u0].d1 = tn;
+          }
+        }
+
+        if (FP_EQUAL(this.TR[t].lo.y, this.TR[tLast].lo.y) && FP_EQUAL(this.TR[t].lo.x, this.TR[tLast].lo.x) && triBot) {
+          this.TR[this.TR[t].d0].u0 = t;
+          this.TR[this.TR[t].d0].u1 = -1;
+          this.TR[this.TR[t].d1].u0 = tn;
+          this.TR[this.TR[t].d1].u1 = -1;
+          
+          this.TR[tn].d0 = this.TR[t].d1;
+          this.TR[t].d1 = this.TR[tn].d1 = -1;
+
+          tNext = this.TR[t].d1;
+        } else if (iD0) {
+          this.TR[this.TR[t].d0].u0 = t;
+          this.TR[this.TR[t].d0].u1 = tn;
+          this.TR[this.TR[t].d1].u0 = tn;
+          this.TR[this.TR[t].d1].u1 = -1;
+
+          this.TR[t].d1 = -1;
+          tNext = this.TR[t].d0;
+        } else {
+          this.TR[this.TR[t].d0].u0 = t;
+          this.TR[this.TR[t].d0].u1 = -1;
+          this.TR[this.TR[t].d1].u0 = t;
+          this.TR[this.TR[t].d1].u1 = tn;
+
+          this.TR[t].d0 = this.TR[t].d1;
+          tNext = this.TR[t].d1;
+        }
+
+        t = tNext;
       }
+
+      this.TR[tSav].rseg = this.TR[tnSav].lseg = s;
     }
 
-    if(FP_EQAUL(this.TR[t].lo.y, this.TR[tLast].lo.y) && FP_EQUAL(this.TR[t].lo.x, this.TR[tLast].lo.x)) {
-      this.TR[this.TR[t].d0] = t;
-      this.TR[this.TR[t].d0] = -1;
-      this.TR[this.TR[t].d1] = tn;
-      this.TR[this.TR[t].d1] = -1;
+    tFirstL = tFirst;
+    tLastL = tLast;
+    this.mergeTrapezoids(s, tFirstL, tLastL, S_LEFT);
+    this.mergeTrapezoids(s, tFirstR, tLastR, S_RIGHT);
+
+    this.SEG[s].isInserted = true;
+  }
+
+  mergeTrapezoids(s: number, tFirst: number, tLast: number, side: number) {
+    let tNext: number, ptNext: number;
+    let cond: boolean = false;
+
+    let t = tFirst;
+
+    while (t > 0 && _greaterThanEqualTo(this.TR[t].lo, this.TR[tLast].lo)) {
+      if (side == S_LEFT) {
+        tNext = this.TR[t].d0;
+        let tmp = tNext > 0 && this.TR[tNext].rseg == s;
+        tNext = this.TR[t].d1;
+        let tmp2 = tNext > 0 && this.TR[tNext].rseg == s;
+        cond = tmp || tmp2;
+      } else {
+        tNext = this.TR[t].d0;
+        let tmp = tNext > 0 && this.TR[tNext].lseg == s;
+        tNext = this.TR[t].d1;
+        let tmp2 = tNext > 0 && this.TR[tNext].lseg == s;
+        cond = tmp || tmp2;
+      }
+
+      if (cond) {
+        if (this.TR[t].lseg == this.TR[tNext].lseg && this.TR[t].rseg == this.TR[tNext].rseg) {
+          ptNext = this.QS[this.TR[tNext].sink].paren;
+
+          if (this.QS[ptNext].left == this.TR[tNext].sink) {
+            this.QS[ptNext].left = this.TR[t].sink;
+          } else {
+            this.QS[ptNext].right = this.TR[t].sink;
+          }
+
+          if ((this.TR[t].d0 = this.TR[tNext].d0) > 0) {
+            if (this.TR[this.TR[t].d0].u0 == tNext) {
+              this.TR[this.TR[t].d0].u0 = t;
+            } else if (this.TR[this.TR[t].d0].u1 == tNext) {
+              this.TR[this.TR[t].d0].u1 = t;
+            }
+          }
+          if ((this.TR[t].d1 = this.TR[tNext].d1) > 0) {
+            if (this.TR[this.TR[t].d1].u0 == tNext) {
+              this.TR[this.TR[t].d1].u0 = t;
+            } else if (this.TR[this.TR[t].d1].u1 == tNext) {
+              this.TR[this.TR[t].d1].u1 = t;
+            }
+          }
+        this.TR[t].lo = this.TR[tNext].lo;
+        this.TR[tNext].state = ST_VALID;
+        } else {
+          t = tNext;
+        }
+      } else {
+        t = tNext;
+      }
     }
   }
 
+  findNewRoots(s: number) {
+    if (this.SEG[s].isInserted) {
+      return
+    }
+    
+    this.SEG[s].root0 = this.locateEndpoint(this.SEG[s].v0, this.SEG[s].v1, this.SEG[s].root0);
+    this.SEG[s].root0 = this.TR[this.SEG[s].root0].sink;
+
+    this.SEG[s].root1 = this.locateEndpoint(this.SEG[s].v1, this.SEG[s].v0, this.SEG[s].root1);
+    this.SEG[s].root1 = this.TR[this.SEG[s].root1].sink;
+  }
 }
 
 
@@ -658,5 +965,10 @@ let verts = [new Point(0, 0), new Point(0, 6), new Point(6, 6), new Point(6, 0)]
 
 let T = new Trapezoidate(verts);
 T.initQueryStructure(0)
+T.constructTrapezoids(verts.length);
+
+for (let i = 0; i < 2; ++i) {
+  console.log("trap #", i, ": ", T.TR[i].u0, T.TR[i].u1);
+}
 
 // console.log(T.SEG.slice(0, verts.length));
