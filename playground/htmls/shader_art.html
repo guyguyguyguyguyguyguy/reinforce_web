@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="">
+
+<head>
+  <link rel="shortcut icon" href="#">
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Image Generator</title>
+
+</head>
+
+<body>
+  <!--Navigation bar-->
+  <div id="navigation">
+  </div>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+  <script>
+    $(function () {
+      $("#navigation").load("nav.html");
+    });
+  </script>
+  <!--End of navigation bar-->
+
+  <!-- Only want them to run when mouse is hovered over-->
+  <canvas id="c1"></canvas>
+  <script type="module" src="../src/shader_art.ts"></script>
+
+  <canvas id="c2"></canvas>
+  <script>
+    let canvas = document.getElementById("c2");
+    let context = canvas.getContext("2d");
+    context.fillStyle = "black";
+    context.font = "bold 18px Arial";
+    context.fillText("Turing morphogenesis", (canvas.width / 2) - 97, (canvas.height / 2) + 8);
+  </script>
+</body>

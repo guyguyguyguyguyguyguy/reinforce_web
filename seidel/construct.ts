@@ -5,6 +5,10 @@ class Point {
     public x: number = 0,
     public y: number = 0,
   ) {}
+
+  static from(o: Point): Point {
+    return new Point(o.x, o.y);
+  }
 }
 
 class Segment {
@@ -32,13 +36,32 @@ class Trap {
     public sink: number = 0,
     public uSave: number = 0,
     public uSide: number = 0,
-    public state: number = 0,
+    public stat: number = 0,
   ) {}
+
+  static from(o: Trap) : Trap {
+    return new Trap(
+      o.lseg,
+      o.rseg,
+      Point.from(o.hi),
+      Point.from(o.lo),
+      o.u0,
+      o.u1,
+      o.d0,
+      o.d1,
+      o.sink,
+      o.uSave,
+      o.uSide,
+      o.stat,
+    );
+  }
 }
+
+// TODO: need to deep copy all times that yVal or Trap.hi or Trap.lo or Segment.v0 or Segment.v1 are assigned  to some point from a different instance
 
 class NodeT{
   constructor(
-    public nodeType: nType = nType.T_SINK,
+    public nodeType: nType = 0,
     public segnum: number = 0,
     public yVal: Point = new Point(),
     public trNum: number = 0,
@@ -189,8 +212,9 @@ function* getRandSeg(nseg: number): Generator<number> {
     [arr[currIdx], arr[randIdx]] = [arr[randIdx], arr[currIdx]];
   }
 
-  for (let i = 0; i < nseg; ++i) {
-    yield arr[i];
+  for (let i = 1; i < nseg; ++i) {
+    // yield arr[i];
+    yield i;
   }
 }
 
@@ -240,25 +264,25 @@ class Trapezoidate {
   // Initialise SEG to contain each segment in the polygon 
   // including the vertices that make up the segment and a reference to the previous/next segments
   readSegments(verts: Array<Point>) {
-    let last = verts.length -1;
+    let last = verts.length;
 
-    for(let i = 0; i < verts.length; ++i) {
-      console.log(verts[i].x, verts[i].y);
-      this.SEG[i].v0.x = verts[i].x;
-      this.SEG[i].v0.y = verts[i].y;
+    for(let i = 1; i < verts.length+1; ++i) {
+      console.log(verts[i-1].x, verts[i-1].y);
+      this.SEG[i].v0.x = verts[i-1].x;
+      this.SEG[i].v0.y = verts[i-1].y;
 
       if (i == 0) {
         this.SEG[i].next = i +1;
         this.SEG[i].prev = last;
-        this.SEG[last].v1 = this.SEG[i].v0;
+        this.SEG[last].v1 = Point.from(this.SEG[i].v0);
       } else if (i == last) {
         this.SEG[i].next = 0;
         this.SEG[i].prev = i - 1;
-        this.SEG[i-1].v1 = this.SEG[i].v0;
+        this.SEG[i-1].v1 = Point.from(this.SEG[i].v0);
       } else {
         this.SEG[i].prev = i -1;
         this.SEG[i].next = i + 1;
-        this.SEG[i-1].v1 = this.SEG[i].v0;
+        this.SEG[i-1].v1 = Point.from(this.SEG[i].v0);
       }
 
       this.SEG[i].isInserted = false;
@@ -305,7 +329,7 @@ class Trapezoidate {
     if (this.trIdx < TRSIZE) {
       this.TR[this.trIdx].lseg = -1;
       this.TR[this.trIdx].rseg = -1;
-      this.TR[this.trIdx].state = ST_VALID;
+      this.TR[this.trIdx].stat = ST_VALID;
 
       return this.trIdx++;
     } else {
@@ -317,6 +341,7 @@ class Trapezoidate {
   initQueryStructure(segnum: number): number {
    let i1: number, i2: number, i3: number, i4: number, i5: number, i6: number, i7:number, root: number;
    let t1: number, t2: number, t3: number, t4: number;
+
   
    // Starting node is initialised as the higher vertex of the randomly selected first segment 
    // Set this node to be the root
@@ -364,8 +389,12 @@ class Trapezoidate {
    // Trapezoids 1 and 2 are either side of the starting segment, left and right respectively
    // Trapezoid 4 is above the segment 
    // Trapezoid 3 is below the segment
-   this.TR[t1].hi = this.TR[t2].hi = this.TR[t4].lo = this.QS[i1].yVal;
-   this.TR[t1].lo = this.TR[t2].lo = this.TR[t3].hi = this.QS[i3].yVal;
+   this.TR[t1].hi = Point.from(this.QS[i1].yVal);
+   this.TR[t2].hi = Point.from(this.QS[i1].yVal);
+   this.TR[t4].lo = Point.from(this.QS[i1].yVal);
+   this.TR[t1].lo = Point.from(this.QS[i3].yVal);
+   this.TR[t2].lo = Point.from(this.QS[i3].yVal);
+   this.TR[t3].hi = Point.from(this.QS[i3].yVal);
    this.TR[t4].hi.y = Infinity;
    this.TR[t4].hi.x = Infinity;
    this.TR[t3].lo.y = -Infinity;
@@ -382,8 +411,8 @@ class Trapezoidate {
    this.TR[t3].sink = i4;
    this.TR[t4].sink = i2;
 
-   this.TR[t1].state = this.TR[t2].state = ST_VALID;
-   this.TR[t3].state = this.TR[t4].state = ST_VALID;
+   this.TR[t1].stat = this.TR[t2].stat = ST_VALID;
+   this.TR[t3].stat = this.TR[t4].stat = ST_VALID;
 
    // Again a reference to the trap represented by the T_SINKs
    this.QS[i2].trNum = t4;
@@ -410,12 +439,10 @@ class Trapezoidate {
   }
 
   locateEndpoint(v: Point, vo: Point, r: number): number {
-    switch (this.QS[r].nodeType) {
-      //case nType.T_SINK:
-      case 3:
+    switch (+this.QS[r].nodeType) {
+      case nType.T_SINK:
         return this.QS[r].trNum;
-      // case nType.T_Y:
-      case 2:
+      case nType.T_Y:
         if(_greaterThan(v, this.QS[r].yVal)) {
           return this.locateEndpoint(v, vo, this.QS[r].right);
         } else if (_equalTo(v, this.QS[r].yVal)) {
@@ -427,8 +454,7 @@ class Trapezoidate {
         } else {
           return this.locateEndpoint(v, vo, this.QS[r].left);
         }
-      // case nType.T_X:
-      case 1:
+      case nType.T_X:
         if(_equalTo(v, this.SEG[this.QS[r].segnum].v0) || _equalTo(v, this.SEG[this.QS[r].segnum].v1)) {
         if (FP_EQUAL(v.y, vo.y)) {
           if (vo.x < v.x) {
@@ -448,7 +474,7 @@ class Trapezoidate {
         }
 
       default: 
-        console.log(this.QS[r]);
+        console.log(r);
         throw new Error("wot?");
         break;
     }
@@ -462,20 +488,26 @@ class Trapezoidate {
     let triBot: number = 0;
     let i1: number, i2: number, sk: number;
     let tmpTriSeg: number;
-
+    
+    console.log("segnum: " ,s);
+    console.log(this.SEG[s]);
     if (_greaterThan(this.SEG[s].v1, this.SEG[s].v0)) {
       [this.SEG[s].v0, this.SEG[s].v1] = [this.SEG[s].v1, this.SEG[s].v0];
       [this.SEG[s].root0, this.SEG[s].root1] = [this.SEG[s].root1, this.SEG[s].root0];
       isSwapped = true;
     } 
 
+    console.log("root0: ", this.SEG[s].root0);
+
     if((isSwapped) ? !this.inserted(s, LASTPT) : !this.inserted(s, FIRSTPT)) {
       let tu = this.locateEndpoint(this.SEG[s].v0, this.SEG[s].v1, this.SEG[s].root0);  
       let tl = this.newTrap();
-      this.TR[tl].state = ST_VALID; // swap with line below?
-      this.TR[tl] = this.TR[tu];
-      this.TR[tu].lo.y = this.TR[tl].hi.y = this.SEG[s].v0.y;
-      this.TR[tu].lo.x = this.TR[tl].hi.x = this.SEG[s].v0.x;
+      this.TR[tl].stat = ST_VALID; // swap with line below?
+      this.TR[tl] = Trap.from(this.TR[tu]);
+      this.TR[tu].lo.y = this.SEG[s].v0.y;
+      this.TR[tl].hi.y = this.SEG[s].v0.y;
+      this.TR[tu].lo.x = this.SEG[s].v0.x;
+      this.TR[tl].hi.x = this.SEG[s].v0.x;
       this.TR[tu].d0 = tl;
       this.TR[tu].d1 = 0;
       this.TR[tl].u0 = tu;
@@ -501,7 +533,7 @@ class Trapezoidate {
       sk = this.TR[tu].sink;
 
       this.QS[sk].nodeType = nType.T_Y;
-      this.QS[sk].yVal = this.SEG[s].v0;
+      this.QS[sk].yVal = Point.from(this.SEG[s].v0);
       this.QS[sk].segnum = s;
       this.QS[sk].left = i2;
       this.QS[sk].right = i1;
@@ -520,21 +552,25 @@ class Trapezoidate {
     } else {
       tFirst = this.locateEndpoint(this.SEG[s].v0, this.SEG[s].v1, this.SEG[s].root0);
       triTop = 1;
+      console.log("tFirst: ", this.SEG[s].v0, this.SEG[s].v1, this.SEG[s].root0);
     }
+
     
     if((isSwapped) ? !this.inserted(s, FIRSTPT) : !this.inserted(s, LASTPT)) {
       let tu = this.locateEndpoint(this.SEG[s].v1, this.SEG[s].v0, this.SEG[s].root1);
 
       let tl = this.newNode();
-      this.TR[tl].state = ST_VALID; //swap with line below?
       this.TR[tl] = this.TR[tu];
-      this.TR[tu].lo.y = this.TR[tl].hi.y = this.SEG[s].v1.y;
-      this.TR[tu].lo.x = this.TR[tl].hi.x = this.SEG[s].v1.x;
+      this.TR[tl].stat = ST_VALID; //swap with line above?
+      this.TR[tu].lo.y = this.SEG[s].v1.y;
+      this.TR[tl].hi.y = this.SEG[s].v1.y;
+      this.TR[tu].lo.x = this.SEG[s].v1.x;
+      this.TR[tl].hi.x = this.SEG[s].v1.x;
       this.TR[tu].d0 = tl;
       this.TR[tu].d1 = 0;
       this.TR[tl].u0 = tu;
       this.TR[tl].u1 = 0;
-
+      
       let tmpD = this.TR[tl].d0;
       if(tmpD > 0 && this.TR[tmpD].u0 == tu) {
         this.TR[tmpD].u0 = tl;
@@ -555,7 +591,7 @@ class Trapezoidate {
       sk = this.TR[tu].sink;
 
       this.QS[sk].nodeType = nType.T_Y;
-      this.QS[sk].yVal = this.SEG[s].v1;
+      this.QS[sk].yVal = Point.from(this.SEG[s].v1);
       this.QS[sk].segnum = s;
       this.QS[sk].left = i2;
       this.QS[sk].right = i1;
@@ -570,12 +606,11 @@ class Trapezoidate {
 
       this.TR[tu].sink = i1;
       this.TR[tl].sink = i2;
-      tFirst = tu;
+      tLast = tu;
     } else {
       tLast = this.locateEndpoint(this.SEG[s].v1, this.SEG[s].v0, this.SEG[s].root1);
       triBot = 1;
     }
-
 
     let t = tFirst;
 
@@ -604,7 +639,7 @@ class Trapezoidate {
       
       this.QS[i2].nodeType = nType.T_SINK;
       this.QS[i2].trNum = tn = this.newTrap();
-      this.TR[tn].state = ST_VALID;
+      this.TR[tn].stat = ST_VALID;
       this.QS[i2].paren = sk;
 
 
@@ -671,34 +706,35 @@ class Trapezoidate {
           }
         }
 
+
         if(FP_EQUAL(this.TR[t].lo.y, this.TR[tLast].lo.y) && FP_EQUAL(this.TR[t].lo.x, this.TR[tLast].lo.x) && triBot) {
           let tmpSeg: number = 0;
 
           tmpTriSeg = isSwapped ? this.SEG[s].prev : this.SEG[s].next;
 
-          if (tmpSeg > 0 && _isLeftOf(this.SEG[tmpSeg], this.SEG[s].v0)) {
-            this.TR[this.TR[t].d1].u0 = t;
+          if (tmpTriSeg > 0 && _isLeftOf(this.SEG[tmpTriSeg], this.SEG[s].v0)) {
+            this.TR[this.TR[t].d0].u0 = t;
             this.TR[tn].d0 = this.TR[tn].d1 = -1;
           } else {
-            this.TR[this.TR[tn].d1].u1 = tn;
+            this.TR[this.TR[tn].d0].u1 = tn;
             this.TR[t].d0 = this.TR[t].d1 = -1;
           }
         } else {
-          if (this.TR[this.TR[t].d1].u0 > 0 && this.TR[this.TR[t].d1].u1 >0) {
-            if (this.TR[this.TR[t].d1].u0 == t) {
-              this.TR[this.TR[t].d1].uSave = this.TR[this.TR[t].d1].u1;
-              this.TR[this.TR[t].d1].uSide = S_LEFT;
+          if (this.TR[this.TR[t].d0].u0 > 0 && this.TR[this.TR[t].d0].u1 >0) {
+            if (this.TR[this.TR[t].d0].u0 == t) {
+              this.TR[this.TR[t].d0].uSave = this.TR[this.TR[t].d0].u1;
+              this.TR[this.TR[t].d0].uSide = S_LEFT;
             } else {
-              this.TR[this.TR[t].d1].uSave = this.TR[this.TR[t].d1].u0;
-              this.TR[this.TR[t].d1].uSide = S_RIGHT;
+              this.TR[this.TR[t].d0].uSave = this.TR[this.TR[t].d0].u0;
+              this.TR[this.TR[t].d0].uSide = S_RIGHT;
             }
           }
 
-          this.TR[this.TR[t].d1].u0 = t;
-          this.TR[this.TR[t].d1].u1 = tn;
+          this.TR[this.TR[t].d0].u0 = t;
+          this.TR[this.TR[t].d0].u1 = tn;
         }
 
-        t = this.TR[t].d1;
+        t = this.TR[t].d0;
       } else if (this.TR[t].d0 <= 0 && this.TR[t].d1 > 0) {
         if (this.TR[t].u0 > 0 && this.TR[t].u1 > 0) {
           if (this.TR[t].uSave > 0) {
@@ -881,10 +917,12 @@ class Trapezoidate {
       }
 
       this.TR[tSav].rseg = this.TR[tnSav].lseg = s;
+      console.log("t " , t, "tn ", tn);
     }
 
     tFirstL = tFirst;
     tLastL = tLast;
+    console.log("s: ", s, "tfirsL: ", tFirstL, "tlastl: ", tLastL, "tfirstr: ", tFirstR, "tlastr: ", tLastR);
     this.mergeTrapezoids(s, tFirstL, tLastL, S_LEFT);
     this.mergeTrapezoids(s, tFirstR, tLastR, S_RIGHT);
 
@@ -936,8 +974,8 @@ class Trapezoidate {
               this.TR[this.TR[t].d1].u1 = t;
             }
           }
-        this.TR[t].lo = this.TR[tNext].lo;
-        this.TR[tNext].state = ST_VALID;
+        this.TR[t].lo = Point.from(this.TR[tNext].lo);
+        this.TR[tNext].stat = ST_VALID;
         } else {
           t = tNext;
         }
@@ -961,10 +999,9 @@ class Trapezoidate {
 }
 
 
-let verts = [new Point(0, 0), new Point(0, 6), new Point(6, 6), new Point(6, 0)];
+let verts = [new Point(0, 0), new Point(6, 0), new Point(6, 6), new Point(0, 6)];
 
 let T = new Trapezoidate(verts);
-T.initQueryStructure(0)
 T.constructTrapezoids(verts.length);
 
 for (let i = 0; i < 2; ++i) {
