@@ -23,12 +23,12 @@ class Segment implements Comparable, Default<Segment> {
   get end(): Point { return (this.p1.y > this.p2.y) ? this.p1 : this.p2 };
 
   slope = (): number => {
-    if (this.p1.x == this.p2.x) return Infinity;
-    return (this.p2.y - this.p1.y) / (this.p1.x - this.p1.x);
+    if (this.p1.x == this.p2.x || this.p1.y == this.p2.y) return Infinity;
+    return (this.p2.y - this.p1.y) / (this.p2.x - this.p1.x);
   }
-  lessThan = (other: Segment) => this.p1.x < other.p1.x;
-  greaterThan = (other: Segment) => this.p1.x > other.p1.x;
-  isEqual = (other: Segment) => this.p1.x === other.p1.x;
+  lessThan = (other: Segment) => this.p1.y < other.p1.y;
+  greaterThan = (other: Segment) => this.p1.y > other.p1.y;
+  isEqual = (other: Segment) => this.p1.y === other.p1.y;
   default = () => new Segment({ x: 0, y: 0 }, { x: 0, y: 0 });
 }
 
@@ -58,7 +58,7 @@ const bentleyOttmann = (segs: Segment[]): BentleyOttmann => {
   let intersections: Point[] = [];
 
   const segOrientation = (p1: Point, p2: Point, p3: Point): [number, boolean] => {
-    const val = (p2.y - p1.y) * (p3.x - p2.x) - (p3.y - p2.y) * (p2.x - p2.x);
+    const val = (p2.y - p1.y) * (p3.x - p2.x) - (p3.y - p2.y) * (p2.x - p1.x);
     const os = (Math.min(p1.x, p2.x) <= p3.x && Math.max(p1.x, p2.x) >= p3.x) && (Math.min(p1.y, p2.y) <= p3.y && Math.max(p1.y, p2.y) >= p3.y);
 
     if (val == 0) { return [0, os] };
@@ -85,6 +85,8 @@ const bentleyOttmann = (segs: Segment[]): BentleyOttmann => {
     let slope1 = s1.slope();
     let slope2 = s2.slope();
 
+    console.log(s1, s2);
+
     if (slope1 == slope2) return { x: Infinity, y: Infinity };
     else {
       let xIntersect: number;
@@ -97,7 +99,7 @@ const bentleyOttmann = (segs: Segment[]): BentleyOttmann => {
         xIntersect = s2.p1.x;
         yIntersect = slope1 * (s2.p1.x - s1.p1.x) + s1.p1.y;
       } else {
-        xIntersect = (slope1 * s1.p1.x - s1.p1.y - slope2 * s2.p1.x, s2.p1.y) / (slope1 - slope2);
+        xIntersect = (slope1 * s1.p1.x - s1.p1.y - slope2 * s2.p1.x * s2.p1.y) / (slope1 - slope2);
         yIntersect = slope1 * (xIntersect - s1.p1.x) + s1.p1.y;
       }
 
@@ -116,18 +118,23 @@ const bentleyOttmann = (segs: Segment[]): BentleyOttmann => {
   const handleStartEvent = (event: BOEvent) => {
     const seg = event.segment;
     status.insertrbNode(seg);
-    const leftNeighbour = status.getNode(seg).left.val;
-    const rightNeighbour = status.getNode(seg).right.val;
 
-    if (leftNeighbour && doIntersect(seg, leftNeighbour)) {
-      let intersectionPoint = computeIntersection(seg, leftNeighbour);
-      let intersectionEvent = new BOEvent(intersectionPoint, seg, EventType.INTERSECTION, leftNeighbour);
+    const leftNeighbour = status.getNode(seg).left;
+    const rightNeighbour = status.getNode(seg).right;
+
+    if (leftNeighbour && doIntersect(seg, leftNeighbour.val)) {
+      let intersectionPoint = computeIntersection(seg, leftNeighbour.val);
+      let intersectionEvent = new BOEvent(intersectionPoint, seg, EventType.INTERSECTION, leftNeighbour.val);
       events.insert(intersectionPoint.y, intersectionEvent)
+
+      intersections.push(intersectionPoint);
     }
-    if (rightNeighbour && doIntersect(seg, rightNeighbour)) {
-      let intersectionPoint = computeIntersection(seg, rightNeighbour);
-      let intersectionEvent = new BOEvent(intersectionPoint, seg, EventType.INTERSECTION, rightNeighbour);
+    if (rightNeighbour && doIntersect(seg, rightNeighbour.val)) {
+      let intersectionPoint = computeIntersection(seg, rightNeighbour.val);
+      let intersectionEvent = new BOEvent(intersectionPoint, seg, EventType.INTERSECTION, rightNeighbour.val);
       events.insert(intersectionPoint.y, intersectionEvent)
+
+      intersections.push(intersectionPoint);
     }
   }
 
@@ -136,43 +143,55 @@ const bentleyOttmann = (segs: Segment[]): BentleyOttmann => {
     const node = status.getNode(seg);
 
     if (node != null) {
-      const leftNeighbour = node.left.val;
-      const rightNeighbour = node.right.val;
+      const leftNeighbour = node.left;
+      const rightNeighbour = node.right;
 
       status.deleterbNode(seg);
 
-      if (leftNeighbour && rightNeighbour && doIntersect(leftNeighbour, rightNeighbour)) {
-        let intersectionPoint = computeIntersection(leftNeighbour, rightNeighbour);
-        let intersectionEvent = new BOEvent(intersectionPoint, leftNeighbour, EventType.INTERSECTION, rightNeighbour);
+      if (leftNeighbour && rightNeighbour && doIntersect(leftNeighbour.val, rightNeighbour.val)) {
+        let intersectionPoint = computeIntersection(leftNeighbour.val, rightNeighbour.val);
+        let intersectionEvent = new BOEvent(intersectionPoint, leftNeighbour.val, EventType.INTERSECTION, rightNeighbour.val);
         events.insert(intersectionPoint.y, intersectionEvent)
+
+        intersections.push(intersectionPoint);
       }
     }
   }
 
   const handleIntersectionEvent = (event: BOEvent) => {
     const seg1 = event.segment;
-    const seg2 = event.segment;
-    status.transplant(status.getNode(seg1), status.getNode(seg2));
+    const seg2 = event.segment2;
 
-    for (let s of [seg1, seg2]) {
-      const node = status.getNode(s);
-      const leftNeighbour = node.left ? node.left.val : null;
-      const rightNeighbour = node.right ? node.right.val : null;
+    if (status.getNode(seg1) && status.getNode(seg2)) {
 
-      if (leftNeighbour && doIntersect(s, leftNeighbour)) {
-        let intersectionPoint = computeIntersection(s, leftNeighbour);
-        let intersectionEvent = new BOEvent(intersectionPoint, s, EventType.INTERSECTION, leftNeighbour);
-        events.insert(intersectionPoint.y, intersectionEvent)
-      }
-      if (rightNeighbour && doIntersect(s, rightNeighbour)) {
-        let intersectionPoint = computeIntersection(s, rightNeighbour);
-        let intersectionEvent = new BOEvent(intersectionPoint, s, EventType.INTERSECTION, rightNeighbour);
-        events.insert(intersectionPoint.y, intersectionEvent)
-      }
-      if (leftNeighbour && rightNeighbour && doIntersect(leftNeighbour, rightNeighbour)) {
-        let intersectionPoint = computeIntersection(leftNeighbour, rightNeighbour);
-        let intersectionEvent = new BOEvent(intersectionPoint, leftNeighbour, EventType.INTERSECTION, rightNeighbour);
-        events.insert(intersectionPoint.y, intersectionEvent)
+      status.transplant(status.getNode(seg1), status.getNode(seg2));
+
+      for (let s of [seg1, seg2]) {
+        const node = status.getNode(s);
+        const leftNeighbour = node.left;
+        const rightNeighbour = node.right;
+
+        if (leftNeighbour && doIntersect(s, leftNeighbour.val)) {
+          let intersectionPoint = computeIntersection(s, leftNeighbour.val);
+          let intersectionEvent = new BOEvent(intersectionPoint, s, EventType.INTERSECTION, leftNeighbour.val);
+          events.insert(intersectionPoint.y, intersectionEvent)
+
+          intersections.push(intersectionPoint);
+        }
+        if (rightNeighbour && doIntersect(s, rightNeighbour.val)) {
+          let intersectionPoint = computeIntersection(s, rightNeighbour.val);
+          let intersectionEvent = new BOEvent(intersectionPoint, s, EventType.INTERSECTION, rightNeighbour.val);
+          events.insert(intersectionPoint.y, intersectionEvent)
+
+          intersections.push(intersectionPoint);
+        }
+        if (leftNeighbour && rightNeighbour && doIntersect(leftNeighbour.val, rightNeighbour.val)) {
+          let intersectionPoint = computeIntersection(leftNeighbour.val, rightNeighbour.val);
+          let intersectionEvent = new BOEvent(intersectionPoint, leftNeighbour.val, EventType.INTERSECTION, rightNeighbour.val);
+          events.insert(intersectionPoint.y, intersectionEvent)
+
+          intersections.push(intersectionPoint);
+        }
       }
     }
   }
@@ -181,7 +200,10 @@ const bentleyOttmann = (segs: Segment[]): BentleyOttmann => {
     let event: BOEvent;
 
     while (!events.isEmpty()) {
-      event = events.pop().value;
+      console.log("Start of next loop");
+      events.printVal("eventType");
+      events.printKey();
+      event = events.pop()
       switch (event.eventType) {
         case EventType.START:
           handleStartEvent(event);

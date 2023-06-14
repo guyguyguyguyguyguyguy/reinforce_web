@@ -23,10 +23,11 @@ export class RBTree<T extends Comparable & Default<T>> {
   private root: rbNode<T>;
 
   constructor(initRootVal: T) {
-    this.NULL = this.createrbNode(initRootVal.default());
-    this.NULL.colour = 0;
-    this.NULL.left = null;
-    this.NULL.right = null;
+    // this.NULL = this.createrbNode(initRootVal.default());
+    // this.NULL.colour = 0;
+    // this.NULL.left = null;
+    // this.NULL.right = null;
+    this.NULL = null;
     this.root = this.NULL;
   }
 
@@ -47,7 +48,7 @@ export class RBTree<T extends Comparable & Default<T>> {
     node.val = key;
     node.left = this.NULL;
     node.right = this.NULL;
-    node.colour = 1; // Set root colour as Red
+    node.colour = 1; // Set node colour as Red
 
     let y: rbNode<T> | null = null;
     let x: rbNode<T> | null = this.root;
@@ -83,7 +84,7 @@ export class RBTree<T extends Comparable & Default<T>> {
   }
 
   private minimum(node: rbNode<T>): rbNode<T> {
-    while (node.left !== this.NULL) {
+    while (node.left !== this.NULL && node.left !== null) {
       node = node.left;
     }
     return node;
@@ -151,7 +152,7 @@ export class RBTree<T extends Comparable & Default<T>> {
         }
       } else {
         const u = x.parent!.parent!.right;
-        if (u.colour === 1) {
+        if (u !== null && u.colour === 1) {
           u.colour = 0;
           x.parent!.colour = 0;
           x.parent!.parent!.colour = 1;
@@ -176,8 +177,8 @@ export class RBTree<T extends Comparable & Default<T>> {
   }
 
   private fixDelete(x: rbNode<T>): void {
-    while (x !== this.root && x.colour === 0) {
-      if (x === x.parent!.left) {
+    while (x !== this.root && x.colour === 0 && x !== this.NULL) {
+      if (x === x.parent!.right) {
         let s = x.parent!.right;
         if (s.colour === 1) {
           s.colour = 0;
@@ -255,9 +256,9 @@ export class RBTree<T extends Comparable & Default<T>> {
       }
 
       if (node.val.lessThan(key) || node.val.isEqual(key)) {
-        node = node.right;
-      } else {
         node = node.left;
+      } else {
+        node = node.right;
       }
     }
 
@@ -308,9 +309,9 @@ export class RBTree<T extends Comparable & Default<T>> {
     let current = this.root;
 
     while (current != null) {
-      if (val == current.val) return current;
-      else if (val < current.val) current = current.right;
-      else current = current.left;
+      if (val.isEqual(current.val)) return current;
+      else if (val.lessThan(current.val)) current = current.left;
+      else current = current.right;
     }
 
     return null;
@@ -322,10 +323,10 @@ export class RBTree<T extends Comparable & Default<T>> {
     const scolour = node.colour === 1 ? "RED" : "BLACK";
     if (node !== this.NULL) {
       if (last) {
-        console.log(indent + "R----" + `${node.val}(${scolour})`)
+        console.log(indent + "L----" + `${node.val}(${scolour})`)
         indent += "     ";
       } else {
-        console.log(indent + "L----" + `${node.val}(${scolour})`)
+        console.log(indent + "R----" + `${node.val}(${scolour})`)
         indent += "|    ";
       }
 

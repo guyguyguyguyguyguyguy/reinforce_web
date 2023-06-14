@@ -7,10 +7,12 @@ interface pNode<T, U> {
 interface PriorityQueue<T, U> {
   insert(priority: T, item: U): void
   peek(): pNode<T, U> | null
-  pop(): pNode<T, U> | null
+  pop(): U | null
   size(): number
   isEmpty(): boolean
   print(): void
+  printVal(attr?: string): void
+  printKey(): void
 }
 
 export const priorityQueue = <T, U>(): PriorityQueue<T, U> => {
@@ -38,6 +40,7 @@ export const priorityQueue = <T, U>(): PriorityQueue<T, U> => {
       heap.push({ key: prio, value: item })
 
       let i = heap.length - 1;
+      let p: number;
       while (i > 0) {
         const p = parent(i);
         if (heap[p].key < heap[i].key) break;
@@ -47,10 +50,11 @@ export const priorityQueue = <T, U>(): PriorityQueue<T, U> => {
     },
 
     pop: () => {
-      const item = heap.pop()
-      if (item == undefined) return null;
+      if (heap.length == undefined) return null;
 
       swap(0, heap.length - 1);
+      const item = heap.pop()
+
       let current = 0;
       while (hasLeft(current)) {
         let smallerChild = left(current);
@@ -63,9 +67,11 @@ export const priorityQueue = <T, U>(): PriorityQueue<T, U> => {
         current = smallerChild;
       }
 
-      return item
+      return item.value
     },
 
     print: () => heap.forEach((s) => { console.log("key: ", s.key, "\nval: ", s.value) }),
+    printVal: (attr?) => heap.forEach((s) => { console.log(attr != null ? `${attr} : ${s.value[attr]}` : s.value) }),
+    printKey: () => heap.forEach((s) => { console.log(`key: ${s.key}`) })
   }
 }
